@@ -3,75 +3,69 @@
 # Runs automatically when the Pico powers up.
 #
 # Startup behaviour:
-#   1. Full refresh + show first static image (totoro)
-#   2. Wait briefly, then switch to animation mode (partial refresh)
-#   3. Loop animation frames indefinitely
+#   1. Scans pico/frames/ for all byte array files
+#   2. Full refresh and displays the first image found
 #
-# To add new images/frames:
-#   - Run convert.py on your PNG to produce a byte array .py file
+# To add a new image:
+#   - Draw in Procreate, export as PNG
+#   - Run convert.py on your laptop to produce a byte array .py file
 #   - Drop the file into pico/frames/
-#   - Import it below and add it to IMAGES or ANIMATION_FRAMES
+#   - Reboot the Pico — it will be picked up automatically
 
 import utime
+import os
 from epd import EPD
 
-# --- Import your frames ---
-from frames.totoro import totoro
 
-# Static images shown on startup (just one for now)
-# Add more as: from frames.myimage import myimage
-IMAGES = [
-    totoro,
-]
+def discover_frames():
+    """
+    Scan the frames/ directory and return a list of image byte arrays,
+    one per file found. Files are loaded in alphabetical order.
+    """
+    images = []
+    try:
+        files = sorted(os.listdir('frames'))
+    except OSError:
+        print("frames/ directory not found")
+        return images
 
-# Animation frames shown after the static image
-# Add each frame in order: from frames.rain_01 import rain_01
-ANIMATION_FRAMES = [
-    # rain_01,
-    # rain_02,
-    # rain_03,
-]
+    for filename in files:
+        if filename.endswith('.py') and not filename.startswith('_'):
+            module_name = filename[:-3]     # strip .py
+            try:
+                module = __import__('frames.' + module_name, None, None, [module_name])
+                # The byte array inside the module shares its name with the file
+                image = getattr(module, module_name)
+                images.append(image)
+                print("Loaded: " + module_name)
+            except Exception as e:
+                print("Failed to load " + module_name + ": " + str(e))
 
-# How long to show the static image before switching to animation (seconds)
-STATIC_DISPLAY_DURATION = 5
-
-# Delay between animation frames (seconds)
-# 0.3s is the minimum partial refresh time for this display
-FRAME_DELAY = 0.3
+    return images
 
 
-def show_static(epd, image):
-    """Full refresh and display a static image."""
-    epd.init(mode=0)        # full refresh mode
-    epd.clear()             # blank the screen cleanly
+def show_image(epd, image):
+    """Full refresh and display a single image."""
+    epd.init(mode=0)
+    epd.clear()
     utime.sleep_ms(500)
     epd.display(image)
 
 
-def run_animation(epd, frames):
-    """Loop through animation frames indefinitely using partial refresh."""
-    epd.init(mode=1)        # partial refresh mode
-    index = 0
-    while True:
-        epd.display_partial(frames[index])
-        utime.sleep(FRAME_DELAY)
-        index = (index + 1) % len(frames)  # loop back to start
-
-
 def main():
-    epd = EPD()             # initialise display with default pin numbers
+    epd = EPD()
 
-    # --- Static image on startup ---
-    show_static(epd, IMAGES[0])
-    utime.sleep(STATIC_DISPLAY_DURATION)
+    images = discover_frames()
 
-    # --- Animation loop ---
-    if ANIMATION_FRAMES:
-        run_animation(epd, ANIMATION_FRAMES)
-    else:
-        # No animation frames yet — just hold the static image
-        # and put the display to sleep to save power
-        epd.sleep()
+    if not images:
+        print("No images found in frames/ — nothing to display")
+        return
+
+    print(str(len(images)) + " image(s) found")
+
+    # Display the first image and sleep
+    show_image(epd, images[0])
+    epd.sleep()
 
 
 main()
