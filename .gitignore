@@ -19,6 +19,7 @@ Thumbs.db
 # Media
 img_clean/media/bw/**
 img_clean/media/colour/**
+img_clean/media/preview/**
 media/img/**
 media/ani/**
 pico/frames/img/**
