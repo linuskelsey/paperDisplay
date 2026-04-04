@@ -23,3 +23,5 @@ media/img/**
 media/ani/**
 pico/frames/img/**
 pico/frames/ani/**
+
+!**/.gitkeep
