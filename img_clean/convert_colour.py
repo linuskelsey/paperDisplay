@@ -4,8 +4,8 @@ convert_colour.py
 Converts colour pixel art PNGs to B&W, padded to display resolution.
 
 Usage:
-  python3 convert/convert_colour.py              # batch convert, no interaction
-  python3 convert/convert_colour.py --preview    # convert + inline preview + retune loop
+  python3 img_clean/convert_colour.py              # batch convert, no interaction
+  python3 img_clean/convert_colour.py --preview    # convert + inline preview + retune loop
 """
 
 import os
@@ -18,8 +18,10 @@ from scipy.ndimage import uniform_filter
 
 DISPLAY_WIDTH        = 296
 DISPLAY_HEIGHT       = 152
-PREVIEW_SCALE        = 3
-PREVIEW_LABEL_HEIGHT = 18
+
+# Preview PNG is rendered at this fixed pixel width — chafa handles scaling to terminal
+PREVIEW_PIXEL_WIDTH  = DISPLAY_WIDTH * 4   # 1184px
+PREVIEW_LABEL_HEIGHT = 22
 
 THRESHOLD           = 140
 MARGIN              = 40
@@ -27,27 +29,20 @@ SHARPEN_STRENGTH    = 2.0
 UNIFORMITY_VARIANCE = 15
 UNIFORMITY_RADIUS   = 3
 
-PER_IMAGE_OVERRIDES = {
-    'spirited_away.png': {'uniformity_variance': 0    'house_over_river.png': {'uniformity_variance': 60},
-},
-}
-
 BASE_DIR    = os.path.dirname(os.path.abspath(__file__))
 COLOUR_DIR  = os.path.join(BASE_DIR, 'media', 'colour')
 BW_DIR      = os.path.join(BASE_DIR, 'media', 'bw')
 PREVIEW_DIR = os.path.join(BASE_DIR, 'media', 'preview')
 
 
-def get_params(filename):
-    params = {
+def get_params():
+    return {
         'threshold':           THRESHOLD,
         'margin':              MARGIN,
         'sharpen_strength':    SHARPEN_STRENGTH,
         'uniformity_variance': UNIFORMITY_VARIANCE,
         'uniformity_radius':   UNIFORMITY_RADIUS,
     }
-    params.update(PER_IMAGE_OVERRIDES.get(filename, {}))
-    return params
 
 
 def sharpen(grey, strength):
@@ -137,35 +132,27 @@ def convert_image(input_path, output_path, params):
 
 def build_preview(original_path, bw_image, params, output_path):
     """
-    Build and save a side-by-side preview PNG.
-    Width is sized to the terminal width so it renders cleanly inline.
-    Returns the saved path.
+    Side-by-side preview at a fixed pixel width — chafa scales it to the terminal.
     """
-    try:
-        term_cols = os.get_terminal_size().columns
-    except OSError:
-        term_cols = 80
+    pw = PREVIEW_PIXEL_WIDTH
+    ph = int(pw * DISPLAY_HEIGHT / DISPLAY_WIDTH)
+    lh = PREVIEW_LABEL_HEIGHT
 
-    # Each terminal column is ~8px wide. Split across 2 panels with a 1px divider.
-    panel_px  = max(DISPLAY_WIDTH, (term_cols * 8) // 2)
-    ph        = int(panel_px * DISPLAY_HEIGHT / DISPLAY_WIDTH)
-    lh        = PREVIEW_LABEL_HEIGHT
-
-    total_w = panel_px * 2 + 3
+    total_w = pw * 2 + 3
     total_h = ph + lh + 2
     canvas  = Image.new('RGB', (total_w, total_h), (30, 30, 30))
 
     orig = Image.open(original_path).convert('RGB')
-    orig.thumbnail((panel_px, ph), Image.LANCZOS)
-    left_panel = Image.new('RGB', (panel_px, ph), (255, 255, 255))
-    left_panel.paste(orig, ((panel_px - orig.width) // 2, (ph - orig.height) // 2))
+    orig.thumbnail((pw, ph), Image.LANCZOS)
+    left_panel = Image.new('RGB', (pw, ph), (255, 255, 255))
+    left_panel.paste(orig, ((pw - orig.width) // 2, (ph - orig.height) // 2))
     canvas.paste(left_panel, (1, 1))
 
-    bw_scaled = bw_image.convert('RGB').resize((panel_px, ph), Image.NEAREST)
-    canvas.paste(bw_scaled, (panel_px + 2, 1))
+    bw_scaled = bw_image.convert('RGB').resize((pw, ph), Image.NEAREST)
+    canvas.paste(bw_scaled, (pw + 2, 1))
 
     draw = ImageDraw.Draw(canvas)
-    draw.line([(panel_px + 1, 1), (panel_px + 1, ph)], fill=(80, 80, 80), width=1)
+    draw.line([(pw + 1, 1), (pw + 1, ph)], fill=(80, 80, 80), width=1)
 
     label_y = ph + 2
     draw.rectangle([(0, label_y), (total_w, total_h)], fill=(20, 20, 20))
@@ -180,17 +167,16 @@ def build_preview(original_path, bw_image, params, output_path):
     stats     = f"black={black_pct:.1f}%  white={100-black_pct:.1f}%"
 
     try:
-        font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf", 11)
+        font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf", 18)
     except Exception:
         font = ImageFont.load_default()
 
-    draw.text((4,            label_y + 3), os.path.basename(original_path), fill=(200, 200, 200), font=font)
-    draw.text((panel_px + 6, label_y + 3), right_label,                     fill=(180, 220, 180), font=font)
+    draw.text((6,           label_y + 3), os.path.basename(original_path), fill=(200, 200, 200), font=font)
+    draw.text((pw + 8,      label_y + 3), right_label,                     fill=(180, 220, 180), font=font)
 
-    # Right-align the stats — measure text width first
-    bbox = font.getbbox(stats)
+    bbox    = font.getbbox(stats)
     stats_w = bbox[2] - bbox[0]
-    draw.text((total_w - stats_w - 6, label_y + 3), stats, fill=(160, 200, 220), font=font)
+    draw.text((total_w - stats_w - 8, label_y + 3), stats, fill=(160, 200, 220), font=font)
 
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     canvas.save(output_path)
@@ -199,23 +185,17 @@ def build_preview(original_path, bw_image, params, output_path):
 
 def build_variant_thumb(bw_image, label, output_path):
     """
-    Build a single-panel B&W thumbnail for one tuning variant.
-    Sized to terminal width so it never wraps.
+    Single-panel B&W thumbnail for a tuning variant, at fixed pixel width.
     """
-    try:
-        term_cols = os.get_terminal_size().columns
-    except OSError:
-        term_cols = 80
+    pw = PREVIEW_PIXEL_WIDTH
+    ph = int(pw * DISPLAY_HEIGHT / DISPLAY_WIDTH)
+    lh = PREVIEW_LABEL_HEIGHT
 
-    panel_px = max(DISPLAY_WIDTH, term_cols * 8)
-    ph       = int(panel_px * DISPLAY_HEIGHT / DISPLAY_WIDTH)
-    lh       = PREVIEW_LABEL_HEIGHT
-
-    total_w = panel_px
+    total_w = pw
     total_h = ph + lh + 2
     canvas  = Image.new('RGB', (total_w, total_h), (30, 30, 30))
 
-    bw_scaled = bw_image.convert('RGB').resize((panel_px, ph), Image.NEAREST)
+    bw_scaled = bw_image.convert('RGB').resize((pw, ph), Image.NEAREST)
     canvas.paste(bw_scaled, (0, 1))
 
     draw = ImageDraw.Draw(canvas)
@@ -223,11 +203,11 @@ def build_variant_thumb(bw_image, label, output_path):
     draw.rectangle([(0, label_y), (total_w, total_h)], fill=(20, 20, 20))
 
     try:
-        font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf", 11)
+        font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf", 18)
     except Exception:
         font = ImageFont.load_default()
 
-    draw.text((4, label_y + 3), label, fill=(255, 200, 80), font=font)
+    draw.text((6, label_y + 3), label, fill=(255, 200, 80), font=font)
 
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     canvas.save(output_path)
@@ -236,18 +216,15 @@ def build_variant_thumb(bw_image, label, output_path):
 
 def prompt_retune(filename, input_path, output_path, preview_path):
     """
-    Inner retune loop. Shows the preview inline, asks if happy.
-    Calls tune.run_tuner() if retuning is requested.
-    Returns True to continue to next image, False to quit the whole run.
+    Show preview inline, loop until happy or quit.
     """
     import display
     import tune as tune_mod
 
+    params = get_params()
+
     while True:
         display.show(preview_path)
-        print(f"  t={get_params(filename)['threshold']}  "
-              f"uv={get_params(filename)['uniformity_variance']}  "
-              f"s={get_params(filename)['sharpen_strength']}")
         try:
             answer = input("  Happy with this? [y / retune / q]: ").strip().lower()
         except (EOFError, KeyboardInterrupt):
@@ -261,20 +238,16 @@ def prompt_retune(filename, input_path, output_path, preview_path):
             return True
 
         if answer in ('r', 'retune', 't', 'tune'):
-            aborted = tune_mod.run_tuner(input_path)
-            if aborted:
-                continue  # user quit tuner — re-show preview and ask again
+            result = tune_mod.run_tuner(input_path)
+            if result is None:
+                continue
 
-            # Reload this module so PER_IMAGE_OVERRIDES reflects the patch
-            import convert_colour as _self
-            importlib.reload(_self)
-
-            # Re-convert with updated params
-            new_params = _self.get_params(filename)
+            # Re-convert with updated global params (tune may have changed them)
+            params = result
             print("  Re-converting...")
-            bw = convert_image(input_path, output_path, new_params)
-            build_preview(input_path, bw, new_params, preview_path)
-            continue  # loop back to show new preview + "happy?" prompt
+            bw = convert_image(input_path, output_path, params)
+            build_preview(input_path, bw, params, preview_path)
+            continue
 
         print("  Please enter y, retune, or q.")
 
@@ -284,7 +257,7 @@ def process_image(filename, interactive):
     stem         = os.path.splitext(filename)[0]
     output_path  = os.path.join(BW_DIR,      stem + '_bw.png')
     preview_path = os.path.join(PREVIEW_DIR, stem + '_preview.png')
-    params       = get_params(filename)
+    params       = get_params()
 
     bw = convert_image(input_path, output_path, params)
 
