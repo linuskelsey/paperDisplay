@@ -176,11 +176,9 @@ def convert(source, name, fps=DEFAULT_FPS, start=None, end=None, dither=True):
 
     print(f"  Found {len(frame_paths)} frame(s) — converting...")
 
-    # Clear pico output dir to avoid stale .py files from previous runs
+    # Wipe and recreate pico output dir entirely
     if os.path.isdir(pico_out_dir):
-        for f in os.listdir(pico_out_dir):
-            if re.match(r'frame_\d+\.py', f):
-                os.remove(os.path.join(pico_out_dir, f))
+        shutil.rmtree(pico_out_dir)
     os.makedirs(pico_out_dir, exist_ok=True)
 
     for i, frame_path in enumerate(frame_paths, 1):
