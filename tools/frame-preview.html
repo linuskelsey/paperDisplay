@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Frame Previewer</title>
+<link href="https://api.fontshare.com/v2/css?f[]=satoshi@400,500,700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --color-bg: #171614; --color-surface: #1c1b19; --color-surface-2: #201f1d;
+    --color-surface-offset: #2d2c2a; --color-border: #393836; --color-divider: #262523;
+    --color-text: #cdccca; --color-text-muted: #797876; --color-text-faint: #5a5957;
+    --color-primary: #4f98a3; --color-primary-hover: #227f8b;
+    --color-success: #6daa45; --color-warning: #bb653b;
+    --font-body: 'Satoshi', 'Inter', sans-serif;
+    --text-xs: clamp(0.75rem, 0.7rem + 0.25vw, 0.875rem);
+    --text-sm: clamp(0.875rem, 0.8rem + 0.35vw, 1rem);
+    --text-base: clamp(1rem, 0.95rem + 0.25vw, 1.125rem);
+    --space-2: 0.5rem; --space-3: 0.75rem; --space-4: 1rem;
+    --space-5: 1.25rem; --space-6: 1.5rem; --space-8: 2rem;
+    --radius-sm: 0.375rem; --radius-md: 0.5rem; --radius-lg: 0.75rem;
+    --radius-xl: 1rem; --radius-full: 9999px;
+    --shadow-md: 0 4px 12px oklch(0 0 0 / 0.3);
+    --transition: 180ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { -webkit-font-smoothing: antialiased; }
+  body { background: var(--color-bg); color: var(--color-text); font-family: var(--font-body); font-size: var(--text-sm); min-height: 100dvh; display: flex; flex-direction: column; }
+  button { cursor: pointer; background: none; border: none; font: inherit; color: inherit; }
+  a, button { transition: color var(--transition), background var(--transition), border-color var(--transition); }
+
+  .header { display: flex; align-items: center; gap: var(--space-4); padding: var(--space-4) var(--space-6); border-bottom: 1px solid var(--color-divider); background: var(--color-surface); }
+  .logo { display: flex; align-items: center; gap: var(--space-2); }
+  .logo svg { color: var(--color-primary); }
+  .logo-text { font-size: var(--text-base); font-weight: 700; letter-spacing: -0.02em; }
+  .header-meta { color: var(--color-text-muted); font-size: var(--text-xs); margin-left: auto; }
+
+  .main { display: grid; grid-template-columns: 240px 1fr 220px; flex: 1; overflow: hidden; height: calc(100dvh - 57px); }
+
+  .sidebar { border-right: 1px solid var(--color-divider); background: var(--color-surface); display: flex; flex-direction: column; overflow: hidden; }
+  .sidebar-header { padding: var(--space-3) var(--space-4); font-size: var(--text-xs); font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--color-text-muted); border-bottom: 1px solid var(--color-divider); display: flex; align-items: center; justify-content: space-between; }
+  .frame-count { font-size: var(--text-xs); color: var(--color-text-faint); background: var(--color-surface-offset); border-radius: var(--radius-sm); padding: 1px 6px; font-weight: 500; }
+  .frame-list { flex: 1; overflow-y: auto; padding: var(--space-2); display: flex; flex-direction: column; gap: 2px; }
+  .frame-list::-webkit-scrollbar { width: 4px; }
+  .frame-list::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: 4px; }
+  .frame-item { padding: var(--space-2) var(--space-3); border-radius: var(--radius-md); cursor: pointer; display: flex; align-items: center; gap: var(--space-2); color: var(--color-text-muted); font-size: var(--text-xs); user-select: none; }
+  .frame-item:hover { background: var(--color-surface-2); color: var(--color-text); }
+  .frame-item.active { background: oklch(from var(--color-primary) l c h / 0.15); color: var(--color-primary); }
+  .frame-item .frame-num { font-weight: 600; min-width: 28px; font-variant-numeric: tabular-nums; }
+  .frame-thumb { width: 28px; height: 28px; border-radius: var(--radius-sm); background: var(--color-surface-offset); overflow: hidden; flex-shrink: 0; }
+  .frame-thumb canvas { width: 100%; height: 100%; image-rendering: pixelated; }
+  .empty-list { padding: var(--space-8) var(--space-4); text-align: center; color: var(--color-text-faint); font-size: var(--text-xs); line-height: 1.6; }
+
+  .canvas-area { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: var(--space-8); gap: var(--space-6); background: var(--color-bg); overflow: hidden; }
+  .canvas-wrapper { background: #000; border-radius: var(--radius-lg); box-shadow: var(--shadow-md), 0 0 0 1px var(--color-border); overflow: hidden; }
+  #mainCanvas { display: block; image-rendering: pixelated; image-rendering: crisp-edges; }
+  .canvas-placeholder { width: 256px; height: 256px; display: flex; align-items: center; justify-content: center; color: var(--color-text-faint); flex-direction: column; gap: var(--space-3); }
+  .canvas-placeholder svg { opacity: 0.3; }
+  .canvas-placeholder p { font-size: var(--text-xs); }
+
+  .controls { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-3) var(--space-4); background: var(--color-surface); border-radius: var(--radius-xl); border: 1px solid var(--color-border); }
+  .btn-icon { width: 32px; height: 32px; border-radius: var(--radius-md); display: flex; align-items: center; justify-content: center; color: var(--color-text-muted); }
+  .btn-icon:hover { background: var(--color-surface-offset); color: var(--color-text); }
+  .btn-play { width: 36px; height: 36px; background: var(--color-primary); color: #fff; border-radius: var(--radius-md); display: flex; align-items: center; justify-content: center; }
+  .btn-play:hover { background: var(--color-primary-hover); }
+  .speed-label { font-size: var(--text-xs); color: var(--color-text-muted); white-space: nowrap; }
+  input[type=range] { -webkit-appearance: none; width: 80px; height: 4px; background: var(--color-surface-offset); border-radius: 2px; outline: none; }
+  input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 12px; height: 12px; background: var(--color-primary); border-radius: 50%; cursor: pointer; }
+  .divider-v { width: 1px; height: 20px; background: var(--color-divider); }
+
+  .info-panel { border-left: 1px solid var(--color-divider); background: var(--color-surface); padding: var(--space-4); overflow-y: auto; display: flex; flex-direction: column; gap: var(--space-5); }
+  .info-section { display: flex; flex-direction: column; gap: var(--space-3); }
+  .info-title { font-size: var(--text-xs); font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--color-text-muted); padding-bottom: var(--space-2); border-bottom: 1px solid var(--color-divider); }
+  .info-row { display: flex; justify-content: space-between; align-items: center; font-size: var(--text-xs); }
+  .info-row .label { color: var(--color-text-muted); }
+  .info-row .value { color: var(--color-text); font-weight: 500; font-variant-numeric: tabular-nums; }
+  .badge { font-size: var(--text-xs); padding: 2px 8px; border-radius: var(--radius-full); font-weight: 500; }
+  .badge-ok   { background: oklch(from var(--color-success) l c h / 0.15); color: var(--color-success); }
+  .badge-warn { background: oklch(from var(--color-warning) l c h / 0.15); color: var(--color-warning); }
+  .badge-idle { background: var(--color-surface-offset); color: var(--color-text-faint); }
+  .drop-zone { border: 1.5px dashed var(--color-border); border-radius: var(--radius-lg); padding: var(--space-4); text-align: center; cursor: pointer; color: var(--color-text-faint); font-size: var(--text-xs); line-height: 1.6; transition: border-color var(--transition), color var(--transition), background var(--transition); margin-top: var(--space-2); display: block; }
+  .drop-zone:hover, .drop-zone.dragover { border-color: var(--color-primary); color: var(--color-primary); background: oklch(from var(--color-primary) l c h / 0.06); }
+  .drop-zone input { display: none; }
+  .progress-track { width: 100%; background: var(--color-surface-offset); border-radius: 2px; height: 3px; overflow: hidden; }
+  .progress-bar { height: 100%; background: var(--color-primary); border-radius: 2px; transition: width 80ms linear; }
+
+  @media (max-width: 900px) { .main { grid-template-columns: 180px 1fr; } .info-panel { display: none; } }
+  @media (max-width: 600px) { .main { grid-template-columns: 1fr; } .sidebar { display: none; } }
+</style>
+</head>
+<body>
+
+<header class="header">
+  <div class="logo">
+    <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+      <rect x="2" y="2" width="18" height="18" rx="3" stroke="currentColor" stroke-width="1.5"/>
+      <rect x="5" y="5" width="5" height="5" fill="currentColor" opacity="0.6"/>
+      <rect x="12" y="5" width="5" height="5" fill="currentColor" opacity="0.3"/>
+      <rect x="5" y="12" width="5" height="5" fill="currentColor" opacity="0.3"/>
+      <rect x="12" y="12" width="5" height="5" fill="currentColor" opacity="0.8"/>
+    </svg>
+    <span class="logo-text">frame-preview</span>
+  </div>
+  <span class="header-meta" id="headerMeta">No frames loaded</span>
+</header>
+
+<div class="main">
+  <aside class="sidebar">
+    <div class="sidebar-header">Frames<span class="frame-count" id="frameCount">0</span></div>
+    <div class="frame-list" id="frameList">
+      <div class="empty-list">Drop .py frame files<br>to get started</div>
+    </div>
+  </aside>
+
+  <section class="canvas-area" id="canvasArea">
+    <div class="canvas-wrapper">
+      <div class="canvas-placeholder" id="placeholder">
+        <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
+          <rect x="4" y="4" width="40" height="40" rx="6" stroke="currentColor" stroke-width="2"/>
+          <circle cx="24" cy="22" r="6" stroke="currentColor" stroke-width="2"/>
+          <path d="M14 38c0-5.523 4.477-10 10-10s10 4.477 10 10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+        <p>Drop .py files or use Load Frames</p>
+      </div>
+      <canvas id="mainCanvas" style="display:none;"></canvas>
+    </div>
+
+    <div class="controls">
+      <button class="btn-icon" title="Previous (←)" onclick="stepFrame(-1)">
+        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="13,1 4,7 13,13"/></svg>
+      </button>
+      <button class="btn-play" id="btnPlay" title="Play/Pause (Space)" onclick="togglePlay()">
+        <svg id="playIcon"  width="14" height="14" fill="currentColor" viewBox="0 0 14 14"><polygon points="3,1 13,7 3,13"/></svg>
+        <svg id="pauseIcon" width="14" height="14" fill="currentColor" viewBox="0 0 14 14" style="display:none"><rect x="2" y="1" width="3.5" height="12"/><rect x="8.5" y="1" width="3.5" height="12"/></svg>
+      </button>
+      <button class="btn-icon" title="Next (→)" onclick="stepFrame(1)">
+        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="1,1 10,7 1,13"/></svg>
+      </button>
+      <div class="divider-v"></div>
+      <span class="speed-label" id="fpsLabel">12 fps</span>
+      <input type="range" id="fpsSlider" min="1" max="30" value="12" oninput="setFps(this.value)">
+      <div class="divider-v"></div>
+      <button class="btn-icon" title="Cycle zoom (Z)" onclick="cycleZoom()">
+        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><circle cx="5.5" cy="5.5" r="4"/><line x1="8.5" y1="8.5" x2="13" y2="13"/><line x1="3.5" y1="5.5" x2="7.5" y2="5.5"/><line x1="5.5" y1="3.5" x2="5.5" y2="7.5"/></svg>
+      </button>
+      <span class="speed-label" id="zoomLabel">4×</span>
+      <div class="divider-v"></div>
+      <button class="btn-icon" id="btnLoop" title="Toggle loop (L)" onclick="toggleLoop()">
+        <svg width="15" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M1 4h10a3 3 0 0 1 0 6H3"/><polyline points="3,7 1,4 4,2"/>
+        </svg>
+      </button>
+    </div>
+
+    <div class="progress-track" style="width:min(280px,70%)">
+      <div class="progress-bar" id="progressBar" style="width:0%"></div>
+    </div>
+  </section>
+
+  <aside class="info-panel">
+    <div class="info-section">
+      <div class="info-title">Status</div>
+      <div class="info-row"><span class="label">State</span><span id="statusBadge" class="badge badge-idle">idle</span></div>
+      <div class="info-row"><span class="label">Frame</span><span class="value" id="infoFrame">—</span></div>
+      <div class="info-row"><span class="label">FPS</span><span class="value" id="infoFps">12</span></div>
+    </div>
+    <div class="info-section">
+      <div class="info-title">Animation</div>
+      <div class="info-row"><span class="label">Total frames</span><span class="value" id="infoTotal">0</span></div>
+      <div class="info-row"><span class="label">Duration</span><span class="value" id="infoDuration">—</span></div>
+      <div class="info-row"><span class="label">Loop</span><span class="value" id="infoLoop">on</span></div>
+    </div>
+    <div class="info-section">
+      <div class="info-title">Canvas</div>
+      <div class="info-row"><span class="label">Source size</span><span class="value" id="infoSize">—</span></div>
+      <div class="info-row"><span class="label">Zoom</span><span class="value" id="infoZoom">4×</span></div>
+      <div class="info-row"><span class="label">Format</span><span class="value">1-bit B&amp;W</span></div>
+    </div>
+    <div class="info-section">
+      <div class="info-title">Load frames</div>
+      <label class="drop-zone" id="dropZone">
+        <input type="file" id="fileInput" multiple accept=".py">
+        Drop .py files here<br>or <strong>click to browse</strong>
+      </label>
+    </div>
+    <div class="info-section">
+      <div class="info-title">Shortcuts</div>
+      <div class="info-row"><span class="label">Play/Pause</span><span class="value">Space</span></div>
+      <div class="info-row"><span class="label">Step</span><span class="value">← →</span></div>
+      <div class="info-row"><span class="label">Zoom</span><span class="value">Z</span></div>
+      <div class="info-row"><span class="label">Loop</span><span class="value">L</span></div>
+    </div>
+  </aside>
+</div>
+
+<script>
+var frames=[], currentIdx=0, fps=12, zoom=4;
+var loopAnim=true, playing=false, rafId=null, lastTs=0;
+var canvas=document.getElementById('mainCanvas');
+var ctx=canvas.getContext('2d');
+
+function parsePy(text) {
+  var w=0, h=0, pixels=[];
+  var mW=text.match(/(?:width|W|COLS?|cols?)\s*=\s*(\d+)/i);
+  var mH=text.match(/(?:height|H|ROWS?|rows?)\s*=\s*(\d+)/i);
+  if(mW) w=parseInt(mW[1]);
+  if(mH) h=parseInt(mH[1]);
+  var dimC=text.match(/#\s*(\d+)\s*x\s*(\d+)/i);
+  if(dimC&&!w){w=parseInt(dimC[1]);h=parseInt(dimC[2]);}
+
+  // tuple list (r,g,b)
+  var tuples=[], re=/\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)/g, m;
+  while((m=re.exec(text))!==null) tuples.push([+m[1],+m[2],+m[3]]);
+  if(tuples.length>4){pixels=tuples;}
+
+  // flat [r,g,b,...] list
+  if(!pixels.length){
+    var best=null, br, blockRe=/=\s*\[([\d,\s]+)\]/g;
+    while((br=blockRe.exec(text))!==null){if(!best||br[1].length>best.length)best=br[1];}
+    if(best){
+      var nums=best.split(',').map(function(n){return parseInt(n.trim());}).filter(function(n){return !isNaN(n);});
+      if(nums.length%3===0&&nums.length>3){for(var i=0;i<nums.length;i+=3)pixels.push([nums[i],nums[i+1],nums[i+2]]);}
+    }
+  }
+
+  // bytes([...])
+  if(!pixels.length){
+    var bm=text.match(/bytes\(\[([\d,\s]+)\]\)/);
+    if(bm){
+      var nums=bm[1].split(',').map(function(n){return parseInt(n.trim());}).filter(function(n){return !isNaN(n);});
+      for(var i=0;i<nums.length;i+=3){if(i+2<nums.length)pixels.push([nums[i],nums[i+1],nums[i+2]]);}
+    }
+  }
+
+  // 1-bit bytearray — render as B&W pixels
+  if(!pixels.length){
+    var hm=text.match(/bytearray\(\[([\s0-9a-fxA-F,]+)\]\)/);
+    if(hm){
+      var bytes=hm[1].split(',').map(function(n){return parseInt(n.trim());}).filter(function(n){return !isNaN(n);});
+      for(var i=0;i<bytes.length;i++){
+        for(var bit=7;bit>=0;bit--){
+          var on=(bytes[i]>>bit)&1;
+          pixels.push(on?[255,255,255]:[0,0,0]);
+        }
+      }
+    }
+  }
+
+  if(pixels.length>0&&(!w||!h)){
+    var cands=[8,16,32,64,128,152,240,256,296,320];
+    for(var ci=0;ci<cands.length;ci++){if(pixels.length%cands[ci]===0){w=cands[ci];h=pixels.length/cands[ci];break;}}
+    if(!w){w=Math.round(Math.sqrt(pixels.length));h=w;}
+  }
+  return{w:w||32,h:h||32,pixels:pixels};
+}
+
+function renderFrame(frame){
+  var w=frame.w,h=frame.h;
+  canvas.width=w;canvas.height=h;
+  canvas.style.width=(w*zoom)+'px';canvas.style.height=(h*zoom)+'px';
+  canvas.style.display='block';
+  document.getElementById('placeholder').style.display='none';
+  var img=ctx.createImageData(w,h);
+  var lim=Math.min(frame.pixels.length,w*h);
+  for(var i=0;i<lim;i++){var px=frame.pixels[i];img.data[i*4]=px[0];img.data[i*4+1]=px[1];img.data[i*4+2]=px[2];img.data[i*4+3]=255;}
+  ctx.putImageData(img,0,0);
+}
+
+function showFrame(idx){
+  if(!frames.length)return;
+  currentIdx=((idx%frames.length)+frames.length)%frames.length;
+  renderFrame(frames[currentIdx]);updateUI();
+}
+
+function updateUI(){
+  var f=frames.length;
+  document.getElementById('infoFrame').textContent=f?(currentIdx+1)+' / '+f:'—';
+  document.getElementById('progressBar').style.width=f>1?((currentIdx/(f-1))*100)+'%':(f?'100%':'0%');
+  document.getElementById('infoTotal').textContent=f;
+  document.getElementById('infoDuration').textContent=f?(f/fps).toFixed(2)+'s':'—';
+  document.getElementById('infoFps').textContent=fps;
+  document.getElementById('infoZoom').textContent=zoom+'×';
+  document.getElementById('zoomLabel').textContent=zoom+'×';
+  document.getElementById('infoLoop').textContent=loopAnim?'on':'off';
+  document.getElementById('btnLoop').style.color=loopAnim?'var(--color-primary)':'';
+  if(f&&frames[currentIdx])document.getElementById('infoSize').textContent=frames[currentIdx].w+'×'+frames[currentIdx].h;
+  var items=document.querySelectorAll('.frame-item');
+  items.forEach(function(el,i){el.classList.toggle('active',i===currentIdx);if(i===currentIdx)el.scrollIntoView({block:'nearest'});});
+  var badge=document.getElementById('statusBadge');
+  badge.className='badge '+(playing?'badge-ok':(f?'badge-warn':'badge-idle'));
+  badge.textContent=playing?'playing':(f?'paused':'idle');
+  document.getElementById('headerMeta').textContent=f?f+' frame'+(f>1?'s':'')+' · '+frames[0].w+'×'+frames[0].h:'No frames loaded';
+  document.getElementById('frameCount').textContent=f;
+}
+
+function tick(ts){
+  if(!playing)return;
+  if(ts-lastTs>=1000/fps){
+    lastTs=ts;
+    var next=currentIdx+1;
+    if(next>=frames.length){if(!loopAnim){playing=false;syncPlayBtn();updateUI();return;}next=0;}
+    showFrame(next);
+  }
+  rafId=requestAnimationFrame(tick);
+}
+
+function syncPlayBtn(){
+  document.getElementById('playIcon').style.display=playing?'none':'';
+  document.getElementById('pauseIcon').style.display=playing?'':'none';
+}
+
+function togglePlay(){if(!frames.length)return;playing=!playing;syncPlayBtn();if(playing){lastTs=0;rafId=requestAnimationFrame(tick);}else cancelAnimationFrame(rafId);updateUI();}
+function stepFrame(dir){if(playing){playing=false;cancelAnimationFrame(rafId);syncPlayBtn();}showFrame(currentIdx+dir);}
+function setFps(v){fps=parseInt(v);document.getElementById('fpsLabel').textContent=fps+' fps';updateUI();}
+
+var ZOOMS=[1,2,4,8,16];
+function cycleZoom(){var idx=ZOOMS.indexOf(zoom);zoom=ZOOMS[(idx+1)%ZOOMS.length];if(frames.length)renderFrame(frames[currentIdx]);updateUI();}
+function toggleLoop(){loopAnim=!loopAnim;updateUI();}
+
+function makeThumbnail(frame){
+  var tc=document.createElement('canvas');tc.width=frame.w;tc.height=frame.h;
+  var tx=tc.getContext('2d');var img=tx.createImageData(frame.w,frame.h);
+  var lim=Math.min(frame.pixels.length,frame.w*frame.h);
+  for(var i=0;i<lim;i++){var px=frame.pixels[i];img.data[i*4]=px[0];img.data[i*4+1]=px[1];img.data[i*4+2]=px[2];img.data[i*4+3]=255;}
+  tx.putImageData(img,0,0);return tc;
+}
+
+function buildSidebar(){
+  var list=document.getElementById('frameList');list.innerHTML='';
+  if(!frames.length){list.innerHTML='<div class="empty-list">Drop .py frame files<br>to get started</div>';return;}
+  frames.forEach(function(fr,i){
+    var item=document.createElement('div');
+    item.className='frame-item'+(i===currentIdx?' active':'');
+    var num=document.createElement('span');num.className='frame-num';num.textContent=String(i).padStart(3,'0');
+    var thumb=document.createElement('div');thumb.className='frame-thumb';
+    var tc=makeThumbnail(fr);tc.style.cssText='width:100%;height:100%;image-rendering:pixelated;';thumb.appendChild(tc);
+    var name=document.createElement('span');name.textContent=fr.name.replace('.py','');name.style.cssText='overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
+    item.appendChild(num);item.appendChild(thumb);item.appendChild(name);
+    (function(idx){item.onclick=function(){if(playing){playing=false;cancelAnimationFrame(rafId);syncPlayBtn();}showFrame(idx);};})(i);
+    list.appendChild(item);
+  });
+}
+
+function loadFiles(fileList){
+  var fileArr=Array.from(fileList).filter(function(f){return f.name.endsWith('.py');});
+  fileArr.sort(function(a,b){var na=parseInt((a.name.match(/\d+/)||[0])[0]);var nb=parseInt((b.name.match(/\d+/)||[0])[0]);return na-nb;});
+  var newFrames=[];
+  var promises=fileArr.map(function(file){
+    return file.text().then(function(text){
+      var parsed=parsePy(text);
+      if(parsed.pixels.length>0)newFrames.push({name:file.name,w:parsed.w,h:parsed.h,pixels:parsed.pixels});
+    });
+  });
+  Promise.all(promises).then(function(){
+    if(!newFrames.length)return;
+    newFrames.sort(function(a,b){var na=parseInt((a.name.match(/\d+/)||[0])[0]);var nb=parseInt((b.name.match(/\d+/)||[0])[0]);return na-nb;});
+    frames=newFrames;currentIdx=0;playing=false;cancelAnimationFrame(rafId);syncPlayBtn();
+    buildSidebar();showFrame(0);
+  });
+}
+
+document.getElementById('fileInput').addEventListener('change',function(e){loadFiles(e.target.files);});
+var dz=document.getElementById('dropZone');
+dz.addEventListener('dragover',function(e){e.preventDefault();dz.classList.add('dragover');});
+dz.addEventListener('dragleave',function(){dz.classList.remove('dragover');});
+dz.addEventListener('drop',function(e){e.preventDefault();dz.classList.remove('dragover');loadFiles(e.dataTransfer.files);});
+var ca=document.getElementById('canvasArea');
+ca.addEventListener('dragover',function(e){e.preventDefault();});
+ca.addEventListener('drop',function(e){e.preventDefault();loadFiles(e.dataTransfer.files);});
+document.addEventListener('keydown',function(e){
+  if(e.target.tagName==='INPUT')return;
+  if(e.code==='Space'){e.preventDefault();togglePlay();}
+  if(e.code==='ArrowRight')stepFrame(1);
+  if(e.code==='ArrowLeft')stepFrame(-1);
+  if(e.code==='KeyZ')cycleZoom();
+  if(e.code==='KeyL')toggleLoop();
+});
+updateUI();
+</script>
+</body>
+</html>
