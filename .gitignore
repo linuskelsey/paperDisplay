@@ -17,7 +17,9 @@ Thumbs.db
 *.swp
 
 # Media
-bw/**
-colour/**
-img/**
-ani/**
+img_clean/media/bw/**
+img_clean/media/colour/**
+media/img/**
+media/ani/**
+pico/frames/img/**
+pico/frames/ani/**
