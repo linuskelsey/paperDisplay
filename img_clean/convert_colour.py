@@ -4,23 +4,21 @@ convert_colour.py
 Converts colour pixel art PNGs to B&W, padded to display resolution.
 
 Usage:
-  python3 img_clean/convert_colour.py              # batch convert, no interaction
+  python3 img_clean/convert_colour.py              # batch convert + auto-copy to media/img/
   python3 img_clean/convert_colour.py --preview    # convert + inline preview + retune loop
 """
 
 import os
 import sys
+import shutil
 import argparse
-import importlib
 import numpy as np
 from PIL import Image, ImageFilter, ImageDraw, ImageFont
 from scipy.ndimage import uniform_filter
 
 DISPLAY_WIDTH        = 296
 DISPLAY_HEIGHT       = 152
-
-# Preview PNG is rendered at this fixed pixel width — chafa handles scaling to terminal
-PREVIEW_PIXEL_WIDTH  = DISPLAY_WIDTH * 4   # 1184px
+PREVIEW_PIXEL_WIDTH  = DISPLAY_WIDTH * 4   # 1184px — chafa scales to terminal
 PREVIEW_LABEL_HEIGHT = 22
 
 THRESHOLD           = 140
@@ -30,9 +28,11 @@ UNIFORMITY_VARIANCE = 15
 UNIFORMITY_RADIUS   = 3
 
 BASE_DIR    = os.path.dirname(os.path.abspath(__file__))
+ROOT_DIR    = os.path.dirname(BASE_DIR)
 COLOUR_DIR  = os.path.join(BASE_DIR, 'media', 'colour')
 BW_DIR      = os.path.join(BASE_DIR, 'media', 'bw')
 PREVIEW_DIR = os.path.join(BASE_DIR, 'media', 'preview')
+IMG_DIR     = os.path.join(ROOT_DIR, 'media', 'img')
 
 
 def get_params():
@@ -45,6 +45,18 @@ def get_params():
     }
 
 
+def copy_to_media(bw_path, filename):
+    """Copy the finished B&W PNG into media/img/, dropping the _bw suffix."""
+    os.makedirs(IMG_DIR, exist_ok=True)
+    stem = os.path.splitext(filename)[0]
+    # Strip trailing _bw if present
+    if stem.endswith('_bw'):
+        stem = stem[:-3]
+    dest = os.path.join(IMG_DIR, stem + '.png')
+    shutil.copy2(bw_path, dest)
+    print(f"  Copied -> media/img/{stem}.png")
+
+
 def sharpen(grey, strength):
     if strength <= 1.0:
         return grey
@@ -55,8 +67,7 @@ def sharpen(grey, strength):
     if fraction > 0:
         arr_orig  = np.array(grey,      dtype=np.float32)
         arr_sharp = np.array(sharpened, dtype=np.float32)
-        blended   = arr_orig + fraction * (arr_sharp - arr_orig)
-        blended   = np.clip(blended, 0, 255).astype(np.uint8)
+        blended   = np.clip(arr_orig + fraction * (arr_sharp - arr_orig), 0, 255).astype(np.uint8)
         sharpened = Image.fromarray(blended, mode='L')
     return sharpened
 
@@ -89,9 +100,9 @@ def convert_image(input_path, output_path, params):
     grey = img.convert('L')
 
     src_w, src_h = grey.size
-    scale  = min(DISPLAY_WIDTH / src_w, DISPLAY_HEIGHT / src_h)
-    new_w  = int(src_w * scale)
-    new_h  = int(src_h * scale)
+    scale        = min(DISPLAY_WIDTH / src_w, DISPLAY_HEIGHT / src_h)
+    new_w        = int(src_w * scale)
+    new_h        = int(src_h * scale)
     grey_resized = grey.resize((new_w, new_h), Image.LANCZOS)
 
     enhanced     = sharpen(grey_resized, params['sharpen_strength'])
@@ -102,8 +113,8 @@ def convert_image(input_path, output_path, params):
     threshold_arr = np.array(threshold_bw.convert('L'), dtype=np.uint8)
     dithered_arr  = np.array(dithered_bw.convert('L'),  dtype=np.uint8)
 
-    t = params['threshold']
-    m = params['margin']
+    t          = params['threshold']
+    m          = params['margin']
     confident  = (grey_arr >= (t + m)) | (grey_arr <= (t - m))
     result_arr = dithered_arr.copy()
     result_arr[confident] = threshold_arr[confident]
@@ -131,9 +142,6 @@ def convert_image(input_path, output_path, params):
 
 
 def build_preview(original_path, bw_image, params, output_path):
-    """
-    Side-by-side preview at a fixed pixel width — chafa scales it to the terminal.
-    """
     pw = PREVIEW_PIXEL_WIDTH
     ph = int(pw * DISPLAY_HEIGHT / DISPLAY_WIDTH)
     lh = PREVIEW_LABEL_HEIGHT
@@ -157,11 +165,9 @@ def build_preview(original_path, bw_image, params, output_path):
     label_y = ph + 2
     draw.rectangle([(0, label_y), (total_w, total_h)], fill=(20, 20, 20))
 
-    right_label = (
-        f"t={params['threshold']}  m={params['margin']}  "
-        f"s={params['sharpen_strength']}  "
-        f"uv={params['uniformity_variance']}  ur={params['uniformity_radius']}"
-    )
+    right_label = (f"t={params['threshold']}  m={params['margin']}  "
+                   f"s={params['sharpen_strength']}  "
+                   f"uv={params['uniformity_variance']}  ur={params['uniformity_radius']}")
     bw_arr    = np.array(bw_image.convert('L'))
     black_pct = 100 * np.sum(bw_arr == 0) / bw_arr.size
     stats     = f"black={black_pct:.1f}%  white={100-black_pct:.1f}%"
@@ -171,9 +177,8 @@ def build_preview(original_path, bw_image, params, output_path):
     except Exception:
         font = ImageFont.load_default()
 
-    draw.text((6,           label_y + 3), os.path.basename(original_path), fill=(200, 200, 200), font=font)
-    draw.text((pw + 8,      label_y + 3), right_label,                     fill=(180, 220, 180), font=font)
-
+    draw.text((6,      label_y + 3), os.path.basename(original_path), fill=(200, 200, 200), font=font)
+    draw.text((pw + 8, label_y + 3), right_label,                     fill=(180, 220, 180), font=font)
     bbox    = font.getbbox(stats)
     stats_w = bbox[2] - bbox[0]
     draw.text((total_w - stats_w - 8, label_y + 3), stats, fill=(160, 200, 220), font=font)
@@ -184,23 +189,16 @@ def build_preview(original_path, bw_image, params, output_path):
 
 
 def build_variant_thumb(bw_image, label, output_path):
-    """
-    Single-panel B&W thumbnail for a tuning variant, at fixed pixel width.
-    """
     pw = PREVIEW_PIXEL_WIDTH
     ph = int(pw * DISPLAY_HEIGHT / DISPLAY_WIDTH)
     lh = PREVIEW_LABEL_HEIGHT
 
-    total_w = pw
-    total_h = ph + lh + 2
-    canvas  = Image.new('RGB', (total_w, total_h), (30, 30, 30))
-
-    bw_scaled = bw_image.convert('RGB').resize((pw, ph), Image.NEAREST)
-    canvas.paste(bw_scaled, (0, 1))
+    canvas = Image.new('RGB', (pw, ph + lh + 2), (30, 30, 30))
+    canvas.paste(bw_image.convert('RGB').resize((pw, ph), Image.NEAREST), (0, 1))
 
     draw = ImageDraw.Draw(canvas)
     label_y = ph + 2
-    draw.rectangle([(0, label_y), (total_w, total_h)], fill=(20, 20, 20))
+    draw.rectangle([(0, label_y), (pw, ph + lh + 2)], fill=(20, 20, 20))
 
     try:
         font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf", 18)
@@ -208,16 +206,12 @@ def build_variant_thumb(bw_image, label, output_path):
         font = ImageFont.load_default()
 
     draw.text((6, label_y + 3), label, fill=(255, 200, 80), font=font)
-
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     canvas.save(output_path)
     return output_path
 
 
 def prompt_retune(filename, input_path, output_path, preview_path):
-    """
-    Show preview inline, loop until happy or quit.
-    """
     import display
     import tune as tune_mod
 
@@ -235,14 +229,13 @@ def prompt_retune(filename, input_path, output_path, preview_path):
             return False
 
         if answer in ('y', ''):
+            copy_to_media(output_path, os.path.basename(output_path))
             return True
 
         if answer in ('r', 'retune', 't', 'tune'):
             result = tune_mod.run_tuner(input_path)
             if result is None:
                 continue
-
-            # Re-convert with updated global params (tune may have changed them)
             params = result
             print("  Re-converting...")
             bw = convert_image(input_path, output_path, params)
@@ -263,6 +256,7 @@ def process_image(filename, interactive):
 
     if not interactive:
         print(f"  {filename} -> bw/{stem}_bw.png")
+        copy_to_media(output_path, stem + '_bw.png')
         return True
 
     build_preview(input_path, bw, params, preview_path)
@@ -276,6 +270,7 @@ def main():
     args = parser.parse_args()
 
     os.makedirs(BW_DIR, exist_ok=True)
+    os.makedirs(IMG_DIR, exist_ok=True)
     if args.preview:
         os.makedirs(PREVIEW_DIR, exist_ok=True)
 
