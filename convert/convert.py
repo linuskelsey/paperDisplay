@@ -1,53 +1,77 @@
 #!/usr/bin/env python3
 """
-Convert a PNG image to a MicroPython byte array for the Waveshare 2.66" e-ink display.
-Output: a .py file containing a byte array ready to import on the Pico.
+Convert all images and animations in media/ to MicroPython byte arrays.
+Outputs .py files into pico/frames/, mirroring the media/ structure.
+
+Structure expected:
+    media/
+    ├── img/                        ← static images
+    │   └── totoro.png
+    └── ani/                        ← animations
+        └── twin_orb/               ← one folder per animation
+            └── frames_raw/         ← raw PNG frames go here
+                ├── frame_001.png
+                └── ...
+
+Output:
+    pico/frames/
+    ├── img/
+    │   └── totoro.py
+    └── ani/
+        └── twin_orb/
+            ├── twin_orb_001.py
+            └── ...
 
 Usage:
-    python3 convert.py <input.png> <output.py> <name>
-
-Example:
-    python3 convert.py ../media/img/totoro.png ../pico/frames/totoro.py totoro
+    python3 convert/convert.py      (from anywhere)
 """
 
+import os
 import sys
 from PIL import Image
 
+# Display dimensions
+WIDTH  = 296
+HEIGHT = 152
 
-def convert(input_path, output_path, name):
-    # Display dimensions
-    WIDTH = 296
-    HEIGHT = 152
+# Paths — anchored to project root (one level up from this script)
+SCRIPT_DIR   = os.path.dirname(os.path.abspath(__file__))
+ROOT_DIR     = os.path.dirname(SCRIPT_DIR)
+MEDIA_DIR    = os.path.join(ROOT_DIR, 'media')
+IMG_DIR      = os.path.join(MEDIA_DIR, 'img')
+ANI_DIR      = os.path.join(MEDIA_DIR, 'ani')
+FRAMES_DIR   = os.path.join(ROOT_DIR, 'pico', 'frames')
+FRAMES_IMG   = os.path.join(FRAMES_DIR, 'img')
+FRAMES_ANI   = os.path.join(FRAMES_DIR, 'ani')
 
+
+def png_to_bytearray(input_path):
+    """Convert a PNG to a packed byte array. 0 = black, 1 = white."""
     img = Image.open(input_path)
-
-    # Resize to display dimensions if needed
     if img.size != (WIDTH, HEIGHT):
-        print(f"Resizing from {img.size} to ({WIDTH}, {HEIGHT})")
         img = img.resize((WIDTH, HEIGHT), Image.LANCZOS)
-
-    # Convert to pure black and white (1-bit)
-    img = img.convert("1")
-
+    img = img.convert('1')
     pixels = list(img.getdata())
 
-    # Pack pixels into bytes, 8 pixels per byte
-    # E-ink convention: 0 = black, 1 = white
-    # PIL "1" mode: 0 = black, 255 = white — so we invert
     byte_array = []
     for i in range(0, len(pixels), 8):
         byte = 0
         for bit in range(8):
             if i + bit < len(pixels):
-                # 255 = white = 1, 0 = black = 0
                 pixel = 1 if pixels[i + bit] == 255 else 0
                 byte = (byte << 1) | pixel
         byte_array.append(byte)
+    return byte_array
 
-    # Write output .py file
-    with open(output_path, "w") as f:
-        f.write(f"# Auto-generated from {input_path}\n")
+
+def write_py(byte_array, output_path, name, source_path):
+    """Write a byte array to a .py file."""
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    with open(output_path, 'w') as f:
+        f.write(f"# Auto-generated from {os.path.relpath(source_path, ROOT_DIR)}\n")
         f.write(f"# {WIDTH}x{HEIGHT} pixels, 1-bit black and white\n\n")
+        f.write(f"WIDTH  = {WIDTH}\n")
+        f.write(f"HEIGHT = {HEIGHT}\n\n")
         f.write(f"{name} = bytearray([\n    ")
         for i, b in enumerate(byte_array):
             f.write(f"0x{b:02X},")
@@ -56,16 +80,76 @@ def convert(input_path, output_path, name):
             else:
                 f.write(" ")
         f.write("\n])\n")
-        f.write(f"\nWIDTH = {WIDTH}\n")
-        f.write(f"HEIGHT = {HEIGHT}\n")
-
-    print(f"Done. Written to {output_path}")
-    print(f"Array size: {len(byte_array)} bytes")
 
 
-if __name__ == "__main__":
-    if len(sys.argv) != 4:
-        print("Usage: python3 convert.py <input.png> <output.py> <name>")
-        sys.exit(1)
+def convert_images():
+    """Convert all PNGs in media/img/ → pico/frames/img/"""
+    if not os.path.isdir(IMG_DIR):
+        print("  No media/img/ folder found, skipping static images.")
+        return
 
-    convert(sys.argv[1], sys.argv[2], sys.argv[3])
+    files = sorted([f for f in os.listdir(IMG_DIR) if f.lower().endswith('.png')])
+    if not files:
+        print("  No PNGs found in media/img/")
+        return
+
+    print(f"  Found {len(files)} static image(s)...")
+    for filename in files:
+        input_path  = os.path.join(IMG_DIR, filename)
+        name        = os.path.splitext(filename)[0]
+        output_path = os.path.join(FRAMES_IMG, f"{name}.py")
+
+        byte_array = png_to_bytearray(input_path)
+        write_py(byte_array, output_path, name, input_path)
+        print(f"    {filename} → pico/frames/img/{name}.py  ({len(byte_array)} bytes)")
+
+
+def convert_animations():
+    """Convert all animation folders in media/ani/ → pico/frames/ani/<name>/"""
+    if not os.path.isdir(ANI_DIR):
+        print("  No media/ani/ folder found, skipping animations.")
+        return
+
+    ani_folders = sorted([
+        d for d in os.listdir(ANI_DIR)
+        if os.path.isdir(os.path.join(ANI_DIR, d))
+    ])
+    if not ani_folders:
+        print("  No animation folders found in media/ani/")
+        return
+
+    for ani_name in ani_folders:
+        frames_raw = os.path.join(ANI_DIR, ani_name, 'frames_raw')
+        if not os.path.isdir(frames_raw):
+            print(f"  Skipping {ani_name}/ — no frames_raw/ subfolder found.")
+            continue
+
+        files = sorted([f for f in os.listdir(frames_raw) if f.lower().endswith('.png')])
+        if not files:
+            print(f"  Skipping {ani_name}/ — no PNGs in frames_raw/")
+            continue
+
+        output_dir = os.path.join(FRAMES_ANI, ani_name)
+        print(f"  {ani_name}: {len(files)} frame(s)...")
+
+        for i, filename in enumerate(files, start=1):
+            input_path  = os.path.join(frames_raw, filename)
+            var_name    = f"{ani_name}_{i:03d}"
+            output_path = os.path.join(output_dir, f"{var_name}.py")
+
+            byte_array = png_to_bytearray(input_path)
+            write_py(byte_array, output_path, var_name, input_path)
+
+        print(f"    → pico/frames/ani/{ani_name}/  ({len(files)} files)")
+
+
+def main():
+    print("Converting static images...")
+    convert_images()
+    print("\nConverting animations...")
+    convert_animations()
+    print("\nAll done.")
+
+
+if __name__ == '__main__':
+    main()
