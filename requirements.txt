@@ -1,0 +1,7 @@
+# Conversion pipeline
+Pillow
+numpy
+scipy
+
+# Pico deployment
+mpremote
