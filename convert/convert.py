@@ -9,8 +9,9 @@ Structure expected:
     │   └── totoro.png
     └── ani/                        ← animations
         └── twin_orb/               ← one folder per animation
-            └── frames_raw/         ← raw PNG frames go here
-                ├── frame_001.png
+            ├── twin_orb.mp4        ← optional: auto-extracts frames
+            └── frames_raw/         ← raw PNG frames (auto-populated)
+                ├── frame_0001.png
                 └── ...
 
 Output:
@@ -28,6 +29,8 @@ Usage:
 
 import os
 import sys
+import shutil
+import subprocess
 from PIL import Image
 
 # Display dimensions
@@ -35,14 +38,14 @@ WIDTH  = 296
 HEIGHT = 152
 
 # Paths — anchored to project root (one level up from this script)
-SCRIPT_DIR   = os.path.dirname(os.path.abspath(__file__))
-ROOT_DIR     = os.path.dirname(SCRIPT_DIR)
-MEDIA_DIR    = os.path.join(ROOT_DIR, 'media')
-IMG_DIR      = os.path.join(MEDIA_DIR, 'img')
-ANI_DIR      = os.path.join(MEDIA_DIR, 'ani')
-FRAMES_DIR   = os.path.join(ROOT_DIR, 'pico', 'frames')
-FRAMES_IMG   = os.path.join(FRAMES_DIR, 'img')
-FRAMES_ANI   = os.path.join(FRAMES_DIR, 'ani')
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+ROOT_DIR   = os.path.dirname(SCRIPT_DIR)
+MEDIA_DIR  = os.path.join(ROOT_DIR, 'media')
+IMG_DIR    = os.path.join(MEDIA_DIR, 'img')
+ANI_DIR    = os.path.join(MEDIA_DIR, 'ani')
+FRAMES_DIR = os.path.join(ROOT_DIR, 'pico', 'frames')
+FRAMES_IMG = os.path.join(FRAMES_DIR, 'img')
+FRAMES_ANI = os.path.join(FRAMES_DIR, 'ani')
 
 
 def png_to_bytearray(input_path):
@@ -120,6 +123,20 @@ def convert_animations():
 
     for ani_name in ani_folders:
         frames_raw = os.path.join(ANI_DIR, ani_name, 'frames_raw')
+
+        # Auto-extract frames from MP4 if frames_raw/ is empty or missing
+        mp4_path = os.path.join(ANI_DIR, ani_name, f"{ani_name}.mp4")
+        if os.path.exists(mp4_path):
+            existing = os.listdir(frames_raw) if os.path.isdir(frames_raw) else []
+            if not any(f.lower().endswith('.png') for f in existing):
+                print(f"  {ani_name}: extracting frames from MP4...")
+                os.makedirs(frames_raw, exist_ok=True)
+                subprocess.run([
+                    'ffmpeg', '-i', mp4_path,
+                    os.path.join(frames_raw, 'frame_%04d.png'),
+                    '-loglevel', 'error'
+                ], check=True)
+
         if not os.path.isdir(frames_raw):
             print(f"  Skipping {ani_name}/ — no frames_raw/ subfolder found.")
             continue
@@ -130,6 +147,12 @@ def convert_animations():
             continue
 
         output_dir = os.path.join(FRAMES_ANI, ani_name)
+
+        # Wipe output dir to clear stale frames from previous runs
+        if os.path.isdir(output_dir):
+            shutil.rmtree(output_dir)
+        os.makedirs(output_dir, exist_ok=True)
+
         print(f"  {ani_name}: {len(files)} frame(s)...")
 
         for i, filename in enumerate(files, start=1):
