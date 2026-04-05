@@ -43,8 +43,10 @@ paperDisplay/
 │
 ├── media/
 │   ├── img/                # Source B&W PNGs for static images
-│   ├── ani/                # Source B&W PNGs for animation frames, in folders by animation name
-│   └── filmstrip/          # Filmstrip QA images output here
+│   └── ani/                # Source B&W PNGs for animation frames, in folders by animation name
+        └── <ani_name>      # Example animation
+            ├── frames_raw  # Animation frames in .png format
+            └── filmstrip/  # Filmstrip QA images output here
 │
 ├── pico/
 │   ├── main.py             # Entry point — runs on boot, displays first image found
