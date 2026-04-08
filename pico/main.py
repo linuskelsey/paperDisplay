@@ -18,6 +18,7 @@
 
 import utime
 import os
+import random
 from epd import EPD
 
 
@@ -66,8 +67,11 @@ def main():
 
     print(str(len(images)) + " image(s) found")
 
-    # Display the first image and sleep
-    show_image(epd, images[0])
+    # Display random image and sleep
+    for _ in range(100):
+        i = random.randint(0, len(images)-1)
+        show_image(epd, images[i])
+        utime.sleep_ms(5000)
 
 
 main()
