@@ -51,9 +51,8 @@ def discover_frames():
 def show_image(epd, image):
     """Full refresh and display a single image."""
     epd.init(mode=0)
-    epd.clear()
-    utime.sleep_ms(500)
-    epd.display(image)
+    epd.display_full(image)
+    epd.sleep()
 
 
 def main():
@@ -69,7 +68,6 @@ def main():
 
     # Display the first image and sleep
     show_image(epd, images[0])
-    epd.sleep()
 
 
 main()

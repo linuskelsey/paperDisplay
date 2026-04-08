@@ -181,6 +181,26 @@ class EPD:
         self._send_data(image)
         self._turn_on_display()
 
+    def display_full(self, image):
+        """
+        Write image to both RAM planes, then trigger a full refresh.
+        Writing the same data to 0x24 (new) and 0x26 (old/prev) tells the
+        controller the previous frame was identical, suppressing the extra
+        waveform phases that cause multi-flash. Use this instead of
+        clear() + display() for image-to-image transitions.
+        """
+        img_bytes = bytes(image)          # ensure it's bytes once, reused for both writes
+        
+        self._set_cursor()
+        self._send_command(0x24)          # write to new-image RAM
+        self._send_data(img_bytes)
+        
+        self._set_cursor()
+        self._send_command(0x26)          # write same data to prev-image RAM
+        self._send_data(img_bytes)
+    
+        self._turn_on_display()
+
     def clear(self, colour=0xFF):
         """
         Fill the display with a solid colour.
@@ -188,12 +208,10 @@ class EPD:
         colour=0x00  →  all black
         """
         line = self.width // 8
-        buf  = [colour] * (self.height * line)
+        buf  = bytes([colour]) * (self.height * line)   # bytes is faster than list
 
         self._set_cursor()
         self._send_command(0x24)
-        self._send_data(buf)
-        self._send_command(0x26)
         self._send_data(buf)
         self._turn_on_display()
 
