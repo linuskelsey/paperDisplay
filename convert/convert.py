@@ -51,8 +51,9 @@ FRAMES_ANI = os.path.join(FRAMES_DIR, 'ani')
 def png_to_bytearray(input_path):
     """Convert a PNG to a packed byte array. 0 = black, 1 = white."""
     img = Image.open(input_path)
-    if img.size != (WIDTH, HEIGHT):
-        img = img.resize((WIDTH, HEIGHT), Image.LANCZOS)
+    img = img.rotate(90, expand=True)
+    if img.size != (HEIGHT, WIDTH):
+        img = img.resize((HEIGHT, WIDTH), Image.LANCZOS)
     img = img.convert('1')
     pixels = list(img.getdata())
 
@@ -73,8 +74,7 @@ def write_py(byte_array, output_path, name, source_path):
     with open(output_path, 'w') as f:
         f.write(f"# Auto-generated from {os.path.relpath(source_path, ROOT_DIR)}\n")
         f.write(f"# {WIDTH}x{HEIGHT} pixels, 1-bit black and white\n\n")
-        f.write(f"WIDTH  = {WIDTH}\n")
-        f.write(f"HEIGHT = {HEIGHT}\n\n")
+        f.write(f"# Image is rotated 90° — stored in portrait (152×296) orientation for landscape display\n")
         f.write(f"{name} = bytearray([\n    ")
         for i, b in enumerate(byte_array):
             f.write(f"0x{b:02X},")
