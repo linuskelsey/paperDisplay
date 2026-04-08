@@ -1,4 +1,28 @@
 <!DOCTYPE html>
+<!--
+  tools/frame-preview.html
+  Browser-based frame viewer for paperDisplay .py byte array files.
+ 
+  Drop one or more .py frame files onto the page (or use the Load Frames panel)
+  to preview static images and animations produced by convert.py or
+  convert_video.py. Supports playback, frame scrubbing, zoom, and FPS control.
+ 
+  Reads WIDTH and HEIGHT from each .py file to set canvas dimensions.
+  Renders 1-bit byte arrays (0 = black, 1 = white) as greyscale pixels.
+ 
+  Note: static image frames are stored in portrait orientation (152×296) due to
+  the 90° rotation applied by convert.py. The viewer renders them at their stored
+  dimensions — portrait for static images, landscape (296×152) for animation
+  frames produced by convert_video.py.
+ 
+  No build step or server required — open directly in any modern browser.
+ 
+  Keyboard shortcuts:
+    Space      Play / Pause
+    ← →        Step one frame
+    Z          Cycle zoom (1× 2× 4× 8× 16×)
+    L          Toggle loop
+-->
 <html lang="en">
 <head>
 <meta charset="UTF-8">

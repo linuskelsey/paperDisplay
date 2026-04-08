@@ -1,11 +1,28 @@
 #!/usr/bin/env python3
 """
 convert_colour.py
-Converts colour pixel art PNGs to B&W, padded to display resolution.
-
+Converts colour pixel art PNGs to B&W, padded and centred to display
+resolution (296 × 152 px), and optionally copies them into media/img/.
+ 
+This is the first stage of the colour image pipeline. Output B&W PNGs are
+then processed by convert.py (which applies the 90° rotation and packs them
+into byte arrays for the Pico).
+ 
+Pipeline per image:
+    1. Greyscale conversion
+    2. Edge enhancement (sharpening)
+    3. Confident pixels (far from threshold) → hard threshold
+    4. Ambiguous pixels (near threshold) → Floyd-Steinberg dithering
+    5. Optional: uniform bright regions forced to white
+    6. Pad to 296 × 152 px with white borders
+    7. Dithered fade on left/right padding only
+ 
+Per-image parameter overrides can be set in PER_IMAGE_OVERRIDES at the top
+of this file. Run with --preview for an interactive tuning loop.
+ 
 Usage:
-  python3 img_clean/convert_colour.py              # batch convert + auto-copy to media/img/
-  python3 img_clean/convert_colour.py --preview    # convert + inline preview + retune loop
+    python img_clean/convert_colour.py              # batch convert + auto-copy to media/img/
+    python img_clean/convert_colour.py --preview    # convert + inline preview + retune loop
 """
 
 import os

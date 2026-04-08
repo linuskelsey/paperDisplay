@@ -1,18 +1,23 @@
 #!/usr/bin/env python3
 """
 convert_video.py
-Converts a video (or folder of image frames) into packed 1-bit byte array
-.py files ready to copy onto the Pico.
-
+Converts a video file (or folder of pre-extracted image frames) into packed
+1-bit byte array .py files ready to copy onto the Pico.
+ 
+Byte convention: 0 = black, 1 = white. 8 pixels per byte, MSB first.
+Frames are stored at the display's native 296 × 152 px (landscape). Unlike
+static images converted by convert.py, video frames are not rotated — they
+are composited onto a black canvas at native size and centred.
+ 
 Full pipeline:
-  video -> frames_raw PNGs -> 1-bit byte array .py files
-
+    video → ffmpeg → frames_raw PNGs → 1-bit byte array .py files
+ 
 Usage:
-  python3 convert/convert_video.py media/ani/totoro/totoro.mp4 totoro
-  python3 convert/convert_video.py media/ani/totoro/frames_raw totoro  # pre-extracted frames
-  python3 convert/convert_video.py media/ani/totoro/totoro.mp4 totoro --fps 10
-  python3 convert/convert_video.py media/ani/totoro/totoro.mp4 totoro --start 2.0 --end 8.5
-  python3 convert/convert_video.py media/ani/totoro/totoro.mp4 totoro --no-dither
+    python convert/convert_video.py media/ani/totoro/totoro.mp4 totoro
+    python convert/convert_video.py media/ani/totoro/frames_raw totoro  # pre-extracted frames
+    python convert/convert_video.py media/ani/totoro/totoro.mp4 totoro --fps 10
+    python convert/convert_video.py media/ani/totoro/totoro.mp4 totoro --start 2.0 --end 8.5
+    python convert/convert_video.py media/ani/totoro/totoro.mp4 totoro --no-dither
 """
 
 import os

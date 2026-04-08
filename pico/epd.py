@@ -1,6 +1,17 @@
-# EPD2in66 MicroPython driver
-# Adapted from Waveshare's Raspberry Pi driver for use with Raspberry Pi Pico
-# Display: Waveshare 2.66" B&W e-Paper (296x152)
+# epd.py
+# MicroPython SPI driver for the Waveshare 2.66" B&W e-Paper display.
+# Adapted from Waveshare's Raspberry Pi driver for use with Raspberry Pi Pico 2.
+#
+# Display: Waveshare 2.66" B&W ePaper (native 152 × 296 px, portrait)
+# Mounted landscape — source images are rotated 90° during conversion on the
+# host side (convert.py). This driver works purely in the display's native
+# portrait coordinate space and has no awareness of rotation.
+#
+# Byte convention: 0 = black, 1 = white. 8 pixels per byte, MSB first.
+# Each full frame buffer is 152 × 296 / 8 = 5,624 bytes.
+#
+# Pin defaults (change to match your wiring):
+#   SCK=10  MOSI=11  CS=9  DC=8  RST=12  BUSY=13
 
 from machine import Pin, SPI
 import utime

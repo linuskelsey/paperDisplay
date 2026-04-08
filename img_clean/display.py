@@ -1,11 +1,17 @@
 #!/usr/bin/env python3
 """
 display.py
-Terminal image rendering for convert_colour.py and tune.py.
-Tries renderers in order: kitten icat -> timg -> chafa -> external open.
-
-All rendering is width-constrained to the current terminal width so nothing
-wraps on narrow terminals.
+Terminal image rendering helper used by convert_colour.py and tune.py.
+ 
+Tries renderers in preference order:
+    1. kitten icat   — Kitty / Ghostty graphics protocol (best quality)
+    2. timg          — high-quality terminal image viewer
+    3. chafa         — Unicode block characters, works in any terminal
+    4. OS default    — opens the image externally as a fallback
+ 
+All inline rendering is width-constrained to the current terminal width so
+output never wraps on narrow terminals. Falls back to external open if the
+terminal is narrower than MIN_COLS (40 columns).
 """
 
 import os

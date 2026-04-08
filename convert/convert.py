@@ -1,20 +1,30 @@
 #!/usr/bin/env python3
 """
-Convert all images and animations in media/ to MicroPython byte arrays.
-Outputs .py files into pico/frames/, mirroring the media/ structure.
-
-Structure expected:
+convert.py
+Batch converts all media/ images and animations to MicroPython byte arrays,
+ready to copy onto the Pico.
+ 
+Orientation note:
+    The Waveshare 2.66" display is natively portrait (152 × 296 px). The device
+    is mounted landscape, so every source image is rotated 90° clockwise here
+    before packing. Draw and export pixel art at 296 × 152 px — the rotation is
+    applied automatically.
+ 
+Byte convention: 0 = black, 1 = white. 8 pixels per byte, MSB first.
+Each packed frame is 152 × 296 / 8 = 5,624 bytes.
+ 
+Input structure:
     media/
-    ├── img/                        ← static images
+    ├── img/                        ← B&W source PNGs (296 × 152 px)
     │   └── totoro.png
-    └── ani/                        ← animations
-        └── twin_orb/               ← one folder per animation
-            ├── twin_orb.mp4        ← optional: auto-extracts frames
-            └── frames_raw/         ← raw PNG frames (auto-populated)
+    └── ani/                        ← animations, one subfolder per clip
+        └── twin_orb/
+            ├── twin_orb.mp4        ← optional: frames auto-extracted via ffmpeg
+            └── frames_raw/         ← raw PNG frames (auto-populated or pre-placed)
                 ├── frame_0001.png
                 └── ...
-
-Output:
+ 
+Output structure:
     pico/frames/
     ├── img/
     │   └── totoro.py
@@ -22,9 +32,9 @@ Output:
         └── twin_orb/
             ├── twin_orb_001.py
             └── ...
-
+ 
 Usage:
-    python3 convert/convert.py      (from anywhere)
+    python convert/convert.py       (from anywhere in the project)
 """
 
 import os

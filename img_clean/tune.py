@@ -2,17 +2,20 @@
 """
 tune.py
 Guided parameter tuner for convert_colour.py.
-
-Tunes one parameter at a time — threshold → sharpening → uniformity_variance.
-Each step shows variants inline in the terminal. Type a number to pick, b to
-go back a step, or q to abort.
-
-Normally called inline by convert_colour.py --preview when you answer 'retune'.
-Can also be run standalone.
-
+ 
+Steps through threshold → sharpening → uniformity_variance one at a time,
+rendering variants inline in the terminal at each step so you can scroll up
+to compare before picking. Supports back-navigation between steps.
+ 
+On completion, patches PER_IMAGE_OVERRIDES in convert_colour.py with the
+chosen values so results persist across runs.
+ 
+Normally called from inside convert_colour.py --preview (via the 'retune'
+prompt). Can also be run standalone against any colour PNG.
+ 
 Standalone usage:
-  python3 img_clean/tune.py <image.png>
-  python3 img_clean/tune.py <image.png> --full   # wider value ranges
+    python img_clean/tune.py <image.png>
+    python img_clean/tune.py <image.png> --full     # wider value ranges
 """
 
 import os

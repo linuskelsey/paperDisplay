@@ -1,14 +1,20 @@
 #!/usr/bin/env python3
 """
 filmstrip.py
-Stitches converted animation frames into a filmstrip PNG for visual QA.
-Reads from pico/frames/ani/<name>/ byte array .py files.
-
+Visual QA tool — stitches converted animation frames into a filmstrip PNG
+so all frames can be inspected at a glance before deploying to the Pico.
+ 
+Reads from pico/frames/ani/<name>/ (byte array .py files produced by
+convert.py or convert_video.py) and reconstructs each frame back into a
+greyscale image for layout into a contact-sheet grid.
+ 
+Output: media/ani/<name>/filmstrip/<name>_filmstrip.png
+ 
 Usage:
-  python3 convert/filmstrip.py <animation_name>
-  python3 convert/filmstrip.py totoro
-  python3 convert/filmstrip.py totoro --cols 8
-  python3 convert/filmstrip.py totoro --out /path/to/output.png
+    python convert/filmstrip.py <animation_name>
+    python convert/filmstrip.py totoro
+    python convert/filmstrip.py totoro --cols 8
+    python convert/filmstrip.py totoro --out /path/to/output.png
 """
 
 import os

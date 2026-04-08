@@ -14,6 +14,7 @@ A small, standalone e-ink pixel art display built on a Raspberry Pi Pico 2 and a
 |---|---|
 | Display | Waveshare 2.66" ePaper Module |
 | Resolution | 296 × 152 px, black & white |
+| Native orientation | Portrait (152 wide × 296 tall) — mounted and driven in landscape |
 | Partial refresh | ~0.3s (used for animations) |
 | Interface | SPI, 3.3V/5V, PH2.0 8-pin cable |
 | Microcontroller | Raspberry Pi Pico 2 H (pre-soldered headers) |
@@ -31,6 +32,8 @@ paperDisplay/
 │   ├── convert.py          # Batch converts all media/ PNGs → pico/frames/ byte arrays
 │   ├── convert_video.py    # Converts MP4/frames → byte arrays for animations (ffmpeg integrated)
 │   └── filmstrip.py        # Stitches animation frames into a filmstrip PNG for QA
+│       └── verify/         # Image verification
+│           └── verify.py   # Verify bytearray gives correct png
 │
 ├── img_clean/
 │   ├── convert_colour.py   # Converts colour pixel art → B&W PNGs, with interactive preview + tuning
@@ -44,23 +47,38 @@ paperDisplay/
 ├── media/
 │   ├── img/                # Source B&W PNGs for static images
 │   └── ani/                # Source B&W PNGs for animation frames, in folders by animation name
-│       └── <ani_name>      # Example animation
-│           ├── frames_raw  # Animation frames in .png format
+│       └── <ani_name>/     # Example animation
+│           ├── frames_raw/ # Animation frames in .png format
 │           └── filmstrip/  # Filmstrip QA images output here
 │
 ├── pico/
 │   ├── main.py             # Entry point — runs on boot, displays first image found
 │   ├── epd.py              # MicroPython SPI driver for the Waveshare 2.66" display
-│   ├── deploy.py           # Syncs pico/ to the Pico over USB via mpremote
+│   ├── deploy.py           # Syncs pico/ to the Pico over USB via mpremote (planned)
 │   └── frames/
 │       ├── img/            # Converted static image byte arrays
 │       └── ani/            # Converted animation frame byte arrays
 │
 └── tools/
-    └── frame-preview.html  # HTML animation viewer for .py Pico frames
+    └── frame-preview.html  # Browser-based animation viewer for .py Pico frame files
 ```
 
-***
+---
+
+## Display Orientation & Coordinate System
+
+The Waveshare 2.66" module is physically a **portrait panel** (152 px wide × 296 px tall). The display is mounted and used in **landscape orientation** (296 px wide × 152 px tall).
+
+To reconcile this, `convert.py` rotates every source PNG **90° clockwise** before packing it into a byte array. The stored frame is therefore 152 × 296 (portrait), which the driver pushes to the panel row-by-row. The panel's own scan order then produces the correct landscape image on screen.
+
+Consequences to be aware of:
+
+- Source images should be drawn and exported at **296 × 152 px** (landscape).
+- Byte array files store data at **152 × 296** (portrait) — `WIDTH = 152`, `HEIGHT = 296`.
+- `frame-preview.html` reads `WIDTH`/`HEIGHT` from the `.py` files and will render frames in portrait. Rotate your browser window or mentally transpose when using it for static images. Animation frames produced by `convert_video.py` are not rotated and render correctly in the viewer at their native dimensions.
+- `epd.py` declares `EPD_WIDTH = 152` and `EPD_HEIGHT = 296` to match the physical panel layout.
+
+---
 
 ## How It Works
 
@@ -68,7 +86,7 @@ The Pico runs MicroPython. On boot, `main.py` scans `pico/frames/img/` for byte 
 
 Animations use partial refresh mode (~0.3s per frame). After a configurable number of loop cycles, a full refresh clears any ghosting before resuming.
 
-Pixel data is packed byte arrays where `0 = black`, `1 = white`, 8 pixels per byte. Each frame is `296 × 152 / 8 = 5,624 bytes`.
+Pixel data is packed byte arrays where `0 = black`, `1 = white`, 8 pixels per byte. Each static image frame is `152 × 296 / 8 = 5,624 bytes`.
 
 ---
 
@@ -115,18 +133,22 @@ Pico-side requires no extra packages — only MicroPython builtins (`machine`, `
 
 ### Convert the entire media bank
 
-Processes everything in `media/` in one command — MP4 extraction, stale frame wipe, and byte array conversion:
+Processes everything in `media/` in one command — MP4 extraction, stale frame wipe, rotation, and byte array conversion:
 
 ```bash
 python convert/convert.py
 ```
 
 This will:
-1. Convert all PNGs in `media/img/` → `pico/frames/img/`
+1. Rotate each PNG in `media/img/` 90° clockwise and convert → `pico/frames/img/`
 2. For each animation in `media/ani/`:
    - Auto-extract PNG frames from the MP4 if `frames_raw/` is empty
    - Wipe the output dir to clear stale frames from previous runs
    - Convert all frames → `pico/frames/ani/<name>/`
+
+> **Note:** Static images are rotated; animation frames are not. See [Display Orientation](#display-orientation--coordinate-system) for rationale.
+
+Byte array conversions can be checked for QA using `verify.py`.
 
 ### Converting a colour image (interactive)
 
@@ -154,17 +176,16 @@ Once happy, copy the B&W output from `img_clean/media/bw/` into `media/img/`, th
 ### Parameter tuning
 
 Triggered by `retune` at the preview prompt. The tuner:
-1. Runs a grid search over `uniformity_variance` values
+1. Runs through threshold → sharpening → uniformity variance, one at a time
 2. Prints each variant inline so you can scroll to compare
-3. Prompts: `Pick a variant [1-7]  (or 'q' to go back)`
+3. Prompts: `Pick [1-N]  (or b to go back, q to abort)`
 4. Patches `PER_IMAGE_OVERRIDES` in `convert_colour.py` automatically with the chosen values
 5. Re-converts and loops back to `Happy with this?`
 
 Standalone usage:
 ```bash
-python img_clean/tune.py img_clean/media/colour/<image.png>          # sweep uniformity_variance
-python img_clean/tune.py img_clean/media/colour/<image.png> --full   # also sweep threshold + sharpen
-python img_clean/tune.py img_clean/media/colour/<image.png> --uv 0 8 20 50  # specific values
+python img_clean/tune.py img_clean/media/colour/<image.png>         # step through threshold → sharpen → UV
+python img_clean/tune.py img_clean/media/colour/<image.png> --full  # wider value ranges at each step
 ```
 
 #### Per-image overrides
@@ -207,15 +228,15 @@ python convert/filmstrip.py <animation_name>
 # e.g. python convert/filmstrip.py twin_orb
 ```
 
-Output: `media/filmstrip/<name>_filmstrip.png`
+Output: `media/ani/<name>/filmstrip/<name>_filmstrip.png`
 
 Also available as a browser-based frame-by-frame previewer — open `tools/frame-preview.html` in any browser and drop the `.py` frame files onto it. Supports playback, scrubbing, zoom, and FPS control.
 
 ### Adding a hand-drawn image
 
-1. Draw at exactly **296 × 152 px** in Procreate using a single-pixel brush, export as PNG
+1. Draw at exactly **296 × 152 px** (landscape) in Procreate using a single-pixel brush, export as PNG
 2. Drop into `media/img/`
-3. Run `python convert/convert.py`
+3. Run `python convert/convert.py` — the script rotates 90° and packs to a byte array
 4. Copy the resulting `.py` from `pico/frames/img/` onto the Pico — it will be picked up on next boot
 
 ---
@@ -273,3 +294,10 @@ PIN_BUSY = 13   # Busy
 - Speaker support — I2S DAC (e.g. MAX98357A) connected to Pico, driven from `main.py`
 - Per-animation audio — each animation folder contains a paired `.mp3` or `.wav` file that loops in sync with playback
 - Audio pipeline — `convert.py` converts audio to the right format (sample rate, mono, appropriate bitdepth) for the DAC alongside the frame conversion
+
+**Modes/UX**
+- Timer mode / Pomodoro mode — device supports picture mode, video mode, and timer mode with a simple mode switch state machine.
+- Timer layout — looping ambient animation in the main canvas plus a small top-centre status bar showing remaining time and current state.
+- Pomodoro cycle support — work session, short break, and optional long break after a configurable number of cycles, which matches the standard Pomodoro structure.
+- Partial refresh strategy for timer mode — full refresh on entering timer mode, then partial refresh for the timer bar and any lightweight loop frames, with periodic full refreshes to clear ghosting.
+- Button layout redesign — inputs need to support mode switching, start/pause, next item, and possibly timer adjust without making the interface awkward.
