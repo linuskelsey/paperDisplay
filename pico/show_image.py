@@ -1,5 +1,6 @@
 import os
 import random
+import utime
 from epd import EPD
 
 
@@ -24,7 +25,7 @@ def load_images():
     return images
 
 
-def run():
+def run(N):
     epd = EPD()
     images = load_images()
 
@@ -32,8 +33,12 @@ def run():
         print("No images found")
         return
 
-    img = images[random.randint(0, len(images) - 1)]
-    print("Displaying image...")
     epd.init(mode=0)
-    epd.display_full(img)
+    i = random.randint(0, len(images) - 1)
+    for _ in range(N):
+        img = images[i]
+        epd.display_full(img)
+        utime.sleep_ms(2000)
+        i += 1
+    epd.clear()
     epd.sleep()

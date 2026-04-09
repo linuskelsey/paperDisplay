@@ -16,6 +16,8 @@
 #   - Copy the .py file into frames/img/ on the Pico
 #   - Reboot — it will be picked up automatically
 
-from show_animation import run
+from show_animation import run as ani
+from show_image import run as img
 
-run('twin_orb')
+img(100)
+# ani('twin_orb')
