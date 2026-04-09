@@ -16,62 +16,6 @@
 #   - Copy the .py file into frames/img/ on the Pico
 #   - Reboot — it will be picked up automatically
 
-import utime
-import os
-import random
-from epd import EPD
+from show_animation import run
 
-
-def discover_frames():
-    """
-    Scan the frames/img/ directory and return a list of image byte arrays,
-    one per file found. Files are loaded in alphabetical order.
-    """
-    images = []
-    try:
-        files = sorted(os.listdir('frames/img'))
-    except OSError:
-        print("frames/img/ directory not found")
-        return images
-
-    for filename in files:
-        if filename.endswith('.py') and not filename.startswith('_'):
-            module_name = filename[:-3]     # strip .py
-            try:
-                module = __import__('frames.img.' + module_name, None, None, [module_name])
-                # The byte array inside the module shares its name with the file
-                image = getattr(module, module_name)
-                images.append(image)
-                print("Loaded: " + module_name)
-            except Exception as e:
-                print("Failed to load " + module_name + ": " + str(e))
-
-    return images
-
-
-def show_image(epd, image):
-    """Full refresh and display a single image."""
-    epd.init(mode=0)
-    epd.display_full(image)
-    epd.sleep()
-
-
-def main():
-    epd = EPD()
-
-    images = discover_frames()
-
-    if not images:
-        print("No images found in frames/img/ — nothing to display")
-        return
-
-    print(str(len(images)) + " image(s) found")
-
-    # Display random image and sleep
-    for _ in range(100):
-        i = random.randint(0, len(images)-1)
-        show_image(epd, images[i])
-        utime.sleep_ms(5000)
-
-
-main()
+run('twin_orb')
