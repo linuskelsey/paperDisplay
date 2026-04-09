@@ -40,5 +40,6 @@ def run(N):
         epd.display_full(img)
         utime.sleep_ms(2000)
         i += 1
+        i = i % len(images)
     epd.clear()
     epd.sleep()
