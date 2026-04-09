@@ -37,8 +37,8 @@ ROOT_DIR    = os.path.dirname(BASE_DIR)
 FRAMES_BASE = os.path.join(ROOT_DIR, 'pico', 'frames', 'ani')
 MEDIA_ANI   = os.path.join(ROOT_DIR, 'media', 'ani')
 
-# Matches only auto-generated frame files: frame_00001.py etc.
-FRAME_FILE_RE = re.compile(r'^frame_\d+\.py$')
+# Matches auto-generated frame files: <name>_001.py etc.
+FRAME_FILE_RE = re.compile(r'^.+_\d+\.py$')
 
 
 # ---------------------------------------------------------------------------

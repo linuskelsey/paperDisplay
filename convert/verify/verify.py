@@ -16,8 +16,8 @@ from PIL import Image
 
 
 def verify(input_path, name, output_path):
-    WIDTH = 296
-    HEIGHT = 152
+    WIDTH = 152
+    HEIGHT = 296
 
     # Dynamically load the .py byte array file
     spec = importlib.util.spec_from_file_location(name, input_path)

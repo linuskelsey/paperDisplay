@@ -43,7 +43,7 @@ MEDIA_ANI   = os.path.join(ROOT_DIR, 'media', 'ani')
 # Frame extraction
 # ---------------------------------------------------------------------------
 
-def extract_frames_ffmpeg(input_path, out_dir, fps, start=None, end=None):
+def extract_frames_ffmpeg(input_path, out_dir, fps, name, start=None, end=None):
     """Extract frames from a video file using ffmpeg."""
     if not shutil.which('ffmpeg'):
         print("Error: ffmpeg not found. Install it with: sudo apt install ffmpeg")
@@ -60,7 +60,7 @@ def extract_frames_ffmpeg(input_path, out_dir, fps, start=None, end=None):
         '-vf', f'fps={fps}',
         '-vsync', 'vfr',       # prevents duplicate frames at clip boundaries
         '-q:v', '2',
-        os.path.join(out_dir, 'frame_%05d.png')
+        os.path.join(out_dir, f'{name}_%03d.png')
     ]
 
     print(f"  Extracting frames at {fps}fps...")
@@ -166,7 +166,7 @@ def convert(source, name, fps=DEFAULT_FPS, start=None, end=None, dither=True):
         for f in os.listdir(frames_raw_dir):
             if f.lower().endswith('.png'):
                 os.remove(os.path.join(frames_raw_dir, f))
-        extract_frames_ffmpeg(source, frames_raw_dir, fps, start=start, end=end)
+        extract_frames_ffmpeg(source, frames_raw_dir, fps, name, start=start, end=end)
         frame_paths = collect_frames(frames_raw_dir)
     elif os.path.isdir(source):
         # Pre-extracted frames folder
@@ -188,7 +188,7 @@ def convert(source, name, fps=DEFAULT_FPS, start=None, end=None, dither=True):
 
     for i, frame_path in enumerate(frame_paths, 1):
         bw       = frame_to_bw(frame_path, dither=dither)
-        var_name = f"frame_{i:05d}"
+        var_name = f"{name}_{i:03d}"
         content  = image_to_byte_array(bw, var_name)
         out_path = os.path.join(pico_out_dir, f"{var_name}.py")
         with open(out_path, 'w') as f:

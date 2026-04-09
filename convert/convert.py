@@ -46,6 +46,7 @@ from PIL import Image
 # Display dimensions
 WIDTH  = 296
 HEIGHT = 152
+DISPLAY_FPS = 3   # Waveshare 2.66" partial refresh ~0.3s/frame
 
 # Paths — anchored to project root (one level up from this script)
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -137,15 +138,18 @@ def convert_animations():
         # Auto-extract frames from MP4 if frames_raw/ is empty or missing
         mp4_path = os.path.join(ANI_DIR, ani_name, f"{ani_name}.mp4")
         if os.path.exists(mp4_path):
-            existing = os.listdir(frames_raw) if os.path.isdir(frames_raw) else []
-            if not any(f.lower().endswith('.png') for f in existing):
-                print(f"  {ani_name}: extracting frames from MP4...")
-                os.makedirs(frames_raw, exist_ok=True)
-                subprocess.run([
-                    'ffmpeg', '-i', mp4_path,
-                    os.path.join(frames_raw, 'frame_%04d.png'),
-                    '-loglevel', 'error'
-                ], check=True)
+            print(f"  {ani_name}: extracting frames from MP4...")
+            os.makedirs(frames_raw, exist_ok=True)
+            for f in os.listdir(frames_raw):
+                if f.lower().endswith('.png'):
+                    os.remove(os.path.join(frames_raw, f))
+            subprocess.run([
+                'ffmpeg', '-i', mp4_path,
+                '-vf', f'fps={DISPLAY_FPS}',
+                '-vsync', 'vfr',
+                os.path.join(frames_raw, f'{ani_name}_%03d.png'),
+                '-loglevel', 'error'
+            ], check=True)
 
         if not os.path.isdir(frames_raw):
             print(f"  Skipping {ani_name}/ — no frames_raw/ subfolder found.")
