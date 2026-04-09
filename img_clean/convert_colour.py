@@ -284,6 +284,8 @@ def main():
     parser = argparse.ArgumentParser(description='Convert colour PNGs to B&W for the e-ink display.')
     parser.add_argument('--preview', action='store_true',
                         help='Interactive mode: show inline preview and retune loop')
+    parser.add_argument('--file', metavar='FILENAME',
+                        help='Convert a single file from img_clean/media/colour/ instead of the whole directory')
     args = parser.parse_args()
 
     os.makedirs(BW_DIR, exist_ok=True)
@@ -291,7 +293,10 @@ def main():
     if args.preview:
         os.makedirs(PREVIEW_DIR, exist_ok=True)
 
-    files = sorted([f for f in os.listdir(COLOUR_DIR) if f.lower().endswith('.png')])
+    if args.file:
+        files = [args.file]
+    else:
+        files = sorted([f for f in os.listdir(COLOUR_DIR) if f.lower().endswith('.png')])
     if not files:
         print(f"No PNG files found in {COLOUR_DIR}")
         return
