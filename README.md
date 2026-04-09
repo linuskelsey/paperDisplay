@@ -52,15 +52,18 @@ paperDisplay/
 │           └── filmstrip/  # Filmstrip QA images output here
 │
 ├── pico/
-│   ├── main.py             # Entry point — runs on boot, displays first image found
+│   ├── main.py             # Entry point — runs on boot
 │   ├── epd.py              # MicroPython SPI driver for the Waveshare 2.66" display
-│   ├── deploy.py           # Syncs pico/ to the Pico over USB via mpremote (planned)
+│   ├── show_animation.py   # Animation presentation on display
+│   ├── show_image.py       # Image presentation on display
 │   └── frames/
 │       ├── img/            # Converted static image byte arrays
 │       └── ani/            # Converted animation frame byte arrays
 │
-└── tools/
-    └── frame-preview.html  # Browser-based animation viewer for .py Pico frame files
+├── tools/
+│   └── frame-preview.html  # Browser-based animation viewer for .py Pico frame files
+│
+└── deploy.py               # Syncs pico/ to the Pico over USB via mpremote
 ```
 
 ---
@@ -253,7 +256,6 @@ Once `mpremote` is installed, use `deploy.py` for faster iteration:
 ```bash
 python pico/deploy.py                # full sync + reboot
 python pico/deploy.py --frames-only  # push new frames only
-python pico/deploy.py --dry-run      # preview what would be copied
 ```
 
 ### Wiring
@@ -279,7 +281,6 @@ PIN_BUSY = 13   # Busy
 - `--force` flag to re-extract MP4 frames even if `frames_raw/` is already populated
 
 **Hardware extensions**
-- `deploy.py` — push frames to Pico over USB in one command
 - Button support in `main.py` — one button for image/animation mode, one to cycle content
 - Standalone portable power via LiPo + TP4056
 - Custom enclosure
